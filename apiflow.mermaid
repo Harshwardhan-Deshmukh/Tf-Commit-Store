@@ -1,0 +1,13 @@
+graph TD
+    A[START: POST /commit/:repo] --> B[Middleware 1: Fetch GitHub Commit]
+    B -->|Success| C[Middleware 2: MongoDB Operations]
+    B -->|Invalid Inputs| E[Return 400: Invalid Inputs]
+    C -->|Success| F[Middleware 3: Azure Blob Container]
+    C -->|Duplicate Commit| G[Return 409: Duplicate Commit]
+    C -->|DB Failure| H[Return 500: DB Down]
+    F -->|Success| I[Middleware 4: Write to Blob]
+    F -->|Container Creation Failed| J[Return 500: Container Creation Failed]
+    I -->|Success| K[Route Handler: Respond]
+    I -->|Append Failed| L[Return 500: Append Failed]
+    K --> M[Return 201: success: true]
+    M --> N[END]
