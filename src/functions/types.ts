@@ -1,5 +1,9 @@
+import { InferSchemaType } from "mongoose"
+import { commitSchema } from "./db"
+
 export type Bindings = {
-    STREAMING_STORAGE_URL: string
+    STREAMING_STORAGE_URL: string,
+    MONGODB_URL: string
 }
 
 type filesType = {
@@ -11,7 +15,7 @@ type filesType = {
 export type Variables = {
     log: {
         commit_id: string,
-        author_name: string,
+        author_name: string
         author_email: string,
         commit_message: string,
         commit_date: Date,
@@ -43,3 +47,5 @@ export type CommitType = {
     },
     files: filesType[]
 }
+
+export type DatabaseSchema = InferSchemaType<typeof commitSchema>;

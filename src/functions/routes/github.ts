@@ -1,9 +1,11 @@
-import { Context, Hono } from "hono";
-import { Bindings, CommitType, Variables } from "../types";
+import { Hono } from "hono";
+import { Bindings, CommitType, DatabaseSchema, Variables } from "../types";
 import axios from "axios";
 import { createContainer, getBlobClient, writeJsonLineToBlob } from "../utils";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { customLogger } from "../app";
+import mongoose from "mongoose";
+import Commit from "../db";
 
 const githubRouter = new Hono<{
     Bindings: Bindings;
@@ -48,9 +50,45 @@ githubRouter.use("/commit/:repo", async (context, next) => {
 })
 
 githubRouter.use("/commit/:repo", async (context, next) => {
+    try {
+        await mongoose.connect(context.env.MONGODB_URL);
+        customLogger("Connected to Mongodb");
+        const repository: string = context.get("log").repository
+        const commitId: string = context.get("log").commit_id
+        const commitMessage: string = context.get("log").commit_message
+        const author: string = context.get("log").author_name
+        const data: DatabaseSchema = await Commit.findOne({ repository })
+        if (data === null) {
+            await Commit.create({
+                repository,
+                commitId,
+                author,
+                commitMessage
+            })
+            customLogger("Data Added in Database")
+        } else if (data.repository && data.commitId !== commitId) {
+            await Commit.updateOne({ repository, commitId: data.commitId }, { "$set": { commitId, commitMessage, author } })
+            customLogger("Commit Id Updated in Database")
+        } else if (data.repository && data.commitId === commitId) {
+            customLogger("Duplicate Commit Id Push Request")
+            context.status(409)
+            return context.json({
+                message: `Commit Id - ${commitId.slice(0, 7)} already added`
+            })
+        }
+        await next();
+    } catch (e) {
+        context.status(500);
+        return context.json({
+            message: "Database is down"
+        })
+    }
+})
+
+githubRouter.use("/commit/:repo", async (context, next) => {
     const blobClient: BlobServiceClient = getBlobClient(context.env.STREAMING_STORAGE_URL);
     const repository = context.get("log").repository;
-    customLogger("REPOSITORY: ", repository)
+    customLogger("Repository: ", repository)
     const containerName = repository.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 63);
     const log = { ...context.get("log"), containerName: containerName }
     context.set("log", log)
